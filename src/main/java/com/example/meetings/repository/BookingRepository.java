@@ -18,7 +18,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     @Query("""
             SELECT  b from Booking b
             WHERE b.room.id = :roomId
-            AND b.status = 'CONFIRMED'
+            AND b.status = 'confirmed'
             AND b.startTime  < :endTime
             AND b.endTime > :startTime
             """)
@@ -26,4 +26,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
             @Param("roomId") Long roomId, 
             @Param("startTime") LocalDateTime startTime, 
             @Param("endTime") LocalDateTime endTime);
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.status = 'confirmed'
+            AND b.startTime < :to
+            AND b.endTime > :from
+            """)
+        List<Booking> findBookingsInRange(LocalDateTime from, LocalDateTime to);
 }
