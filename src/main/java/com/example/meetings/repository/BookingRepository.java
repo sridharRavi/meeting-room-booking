@@ -18,6 +18,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long>, JpaSpec
     @Query("""
             SELECT  b from Booking b
             WHERE b.room.id = :roomId
+            AND b.status = 'CONFIRMED'
             AND b.startTime  < :endTime
             AND b.endTime > :startTime
             """)

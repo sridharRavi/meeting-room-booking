@@ -15,13 +15,20 @@ import org.springframework.stereotype.Service;
 
 import com.example.meetings.model.Room;
 import com.example.meetings.repository.RoomRepository;
+
+import jakarta.transaction.Transactional;
+
 import com.example.meetings.dto.BookingRequest;
 import com.example.meetings.model.Booking;
+import com.example.meetings.model.IdempotencyRecord;
 import com.example.meetings.repository.BookingRepository;
+import com.example.meetings.repository.IdempotencyRepository;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
 
 @Service
 public class BookingService {
@@ -31,8 +38,38 @@ public class BookingService {
     @Autowired
     private RoomRepository roomRepository;
 
-    public Booking createBooking(BookingRequest request)
+    @Autowired
+    private IdempotencyRepository idempotencyRepository; 
+
+    @Transactional
+    public Booking createBooking(BookingRequest request, String idempotencyKey)
     {
+        String organizerEmail = request.getOrganizerEmail();
+        Optional<IdempotencyRecord> existingOpt =
+            idempotencyRepository.findByIdempotencyKeyAndOrganizerEmail(
+                    idempotencyKey, organizerEmail);
+
+        if (existingOpt.isPresent()) {
+            IdempotencyRecord record = existingOpt.get();
+
+        if ("COMPLETED".equals(record.getStatus())) {
+            return bookingRepository.findById(record.getBookingId())
+                    .orElseThrow(() -> new RuntimeException("Booking not found"));
+        }
+        if ("IN_PROGRESS".equals(record.getStatus())) {
+            throw new RuntimeException("Request already in progress");
+        }
+    }
+
+    // 2️⃣ Create IN_PROGRESS record
+        IdempotencyRecord record = new IdempotencyRecord();
+        record.setIdempotencyKey(idempotencyKey);
+        record.setOrganizerEmail(organizerEmail);
+        record.setStatus("IN_PROGRESS");
+        record.setCreatedAt(LocalDateTime.now());
+
+        idempotencyRepository.save(record);
+
         Room room = roomRepository.findById(request.getRoomId())
         .orElseThrow(() -> new RuntimeException("room not found"));
 
@@ -75,7 +112,14 @@ public class BookingService {
         booking.setEndTime(request.getEndTime());
         booking.setStatus("confirmed");
 
-        return bookingRepository.save(booking);
+        Booking newBooking =  bookingRepository.save(booking);
+
+        record.setBookingId(newBooking.getId());
+        record.setStatus("COMPLETED");
+
+        idempotencyRepository.save(record);
+
+        return newBooking;
 
     }
 
@@ -116,4 +160,25 @@ public class BookingService {
 
     return response;
     }
+
+    @Transactional
+    public Booking cancelBooking(long bookingId)
+    {
+        Booking booking = bookingRepository.findById(bookingId)
+            .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+    if ("CANCELLED".equalsIgnoreCase(booking.getStatus())) {
+        return booking;
+    }
+    LocalDateTime now = LocalDateTime.now();
+
+    if (now.isAfter(booking.getStartTime().minusHours(1))) {
+        throw new RuntimeException("Cannot cancel booking less than 1 hour before start time");
+    }
+    booking.setStatus("CANCELLED");
+
+    return bookingRepository.save(booking);
+    }
+
+
 }
