@@ -2,9 +2,15 @@ package com.example.meetings.service;
 
 import java.time.DayOfWeek;
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.domain.PageRequest;
+
 import org.springframework.stereotype.Service;
 
 import com.example.meetings.model.Room;
@@ -13,12 +19,14 @@ import com.example.meetings.dto.BookingRequest;
 import com.example.meetings.model.Booking;
 import com.example.meetings.repository.BookingRepository;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class BookingService {
     @Autowired
-    private BookingRepository bookingRepositiory;
+    private BookingRepository bookingRepository;
 
     @Autowired
     private RoomRepository roomRepository;
@@ -52,7 +60,7 @@ public class BookingService {
             throw new RuntimeException("Bookings allowed only between 08:00–20:00");
         }
         
-        List<Booking> conflicts = bookingRepositiory.findConflictingBookings(request.getRoomId(), 
+        List<Booking> conflicts = bookingRepository.findConflictingBookings(request.getRoomId(), 
         request.getStartTime(), request.getEndTime());
 
         if (!conflicts.isEmpty()) {
@@ -67,9 +75,45 @@ public class BookingService {
         booking.setEndTime(request.getEndTime());
         booking.setStatus("confirmed");
 
-        return bookingRepositiory.save(booking);
+        return bookingRepository.save(booking);
 
     }
 
+    public Map<String, Object> getBookings(
+        Long roomId,
+        LocalDateTime from,
+        LocalDateTime to,
+        int limit,
+        int offset )
+    {
 
+        Pageable pageable = PageRequest.of(offset / limit, limit);
+
+        Specification<Booking> spec =  (root, query, cb) -> cb.conjunction();
+        
+        if (roomId != null) {
+        spec = spec.and((root, query, cb) ->
+                cb.equal(root.get("room").get("id"), roomId));
+    }
+
+    if (from != null) {
+        spec = spec.and((root, query, cb) ->
+                cb.greaterThanOrEqualTo(root.get("startTime"), from));
+    }
+
+    if (to != null) {
+        spec = spec.and((root, query, cb) ->
+                cb.lessThanOrEqualTo(root.get("endTime"), to));
+    }
+        
+    Page<Booking> page = bookingRepository.findAll(spec, pageable);
+
+    Map<String, Object> response = new HashMap<>();
+    response.put("items", page.getContent());
+    response.put("total", page.getTotalElements());
+    response.put("limit", limit);
+    response.put("offset", offset);
+
+    return response;
+    }
 }
