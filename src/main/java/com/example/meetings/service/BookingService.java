@@ -61,7 +61,6 @@ public class BookingService {
         }
     }
 
-    // 2️⃣ Create IN_PROGRESS record
         IdempotencyRecord record = new IdempotencyRecord();
         record.setIdempotencyKey(idempotencyKey);
         record.setOrganizerEmail(organizerEmail);
@@ -81,27 +80,27 @@ public class BookingService {
 
         if (minutes < 15 || minutes > 240)
         {
-            throw new RuntimeException("Booking must be between 15 min and 4 hours");
+            throw new IllegalArgumentException("Booking must be between 15 min and 4 hours");
         }
 
         DayOfWeek day = request.getStartTime().getDayOfWeek();
 
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
-            throw new RuntimeException("Bookings allowed only Mon-Fri");
+            throw new IllegalArgumentException("Bookings allowed only Mon-Fri");
         }
 
         LocalTime start = request.getStartTime().toLocalTime();
         LocalTime end = request.getEndTime().toLocalTime();
 
         if (start.isBefore(LocalTime.of(8, 0)) || end.isAfter(LocalTime.of(20, 0))) {
-            throw new RuntimeException("Bookings allowed only between 08:00–20:00");
+            throw new IllegalArgumentException("Bookings allowed only between 08:00–20:00");
         }
         
         List<Booking> conflicts = bookingRepository.findConflictingBookings(request.getRoomId(), 
         request.getStartTime(), request.getEndTime());
 
         if (!conflicts.isEmpty()) {
-            throw new RuntimeException("Booking conflict exists");
+            throw new IllegalArgumentException("Booking conflict exists");
         }
 
         Booking booking = new Booking();
@@ -173,7 +172,7 @@ public class BookingService {
     LocalDateTime now = LocalDateTime.now();
 
     if (now.isAfter(booking.getStartTime().minusHours(1))) {
-        throw new RuntimeException("Cannot cancel booking less than 1 hour before start time");
+        throw new IllegalArgumentException("Cannot cancel booking less than 1 hour before start time");
     }
     booking.setStatus("CANCELLED");
 
