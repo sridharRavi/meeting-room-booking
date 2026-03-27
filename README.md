@@ -46,6 +46,7 @@ Duplicate requests with the same key:
 Return the same response
 Do not create duplicate bookings
 Also has Conflict checks to return error responses for bookings at the same time
+**All API endpoints are tested and the output is in the postman_screenshots folder**
 
 **Running the Application**
 Download the repo and run the following command at the root (where pom.xml is present). Make sure you have maven and Java and Spring boot setuo in your system
